@@ -99,7 +99,7 @@ threading.Thread(target=run_flask).start()
 
 # --- 2) Configuration du bot Discord ---
 intents = discord.Intents.all()
-bot = commands.Bot(command_prefix="/", intents=intents)
+bot = commands.Bot(command_prefix="!", intents=intents)
 
 # Remplace par tes propres IDs
 WELCOME_CHANNEL_ID = 1302027297116917922  
@@ -267,3 +267,4 @@ if __name__ == "__main__":
         run_bot()
         print("⏳ Nouvelle tentative dans 5 secondes…")
         time.sleep(5)
+
