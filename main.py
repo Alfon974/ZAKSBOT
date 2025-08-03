@@ -153,6 +153,20 @@ async def on_message(message):
         await log_ch.send(f"✉️ {message.author.mention} a gagné 10 XP (texte). Total: {xp} XP.")
     await bot.process_commands(message)
 
+    if message.channel.id == LEVEL_LOG_CHANNEL_ID:
+        if message.content.startswith(bot.command_prefix):
+            await bot.process_commands(message)
+        else:
+            await message.delete()
+            try:
+                warn = await message.channel.send(
+                    f"{message.author.mention} Ce salon est réservé aux commandes.",
+                    delete_after=3
+                )
+            except discord.Forbidden:
+                pass
+        return
+
 @bot.event
 async def on_voice_state_update(member, before, after):
     if before.channel is None and after.channel:
@@ -253,3 +267,4 @@ def run_bot():
 
 if __name__ == "__main__":
     run_bot()
+
