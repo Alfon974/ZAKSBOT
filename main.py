@@ -166,7 +166,7 @@ async def slash_level(interaction: discord.Interaction):
     if log: await log.send(f"🔍 {interaction.user.mention} a utilisé /level dans <#{interaction.channel.id}>")
 
 @tree.command(guild=GUILD, name='levelup', description="Ajoute de l'XP à un membre")
-@app_commands.describe(member='Membre cible', amount='Quantité d'XP')
+@app_commands.describe(member='Membre cible', amount="Quantité d'XP")
 async def slash_levelup(interaction: discord.Interaction, member: discord.Member=None, amount: int=1):
     if 'Admin' not in [r.name for r in interaction.user.roles]:
         return await interaction.response.send_message('❌ Permission refusée.', ephemeral=True)
@@ -180,7 +180,7 @@ async def slash_levelup(interaction: discord.Interaction, member: discord.Member
     await interaction.followup.send(f"✅ {amount} XP ajouté à {target.mention}. Total: {new_xp} XP.", ephemeral=True)
 
 @tree.command(guild=GUILD, name='leveldown', description="Retire de l'XP à un membre")
-@app_commands.describe(member='Membre cible', amount='Quantité d'XP')
+@app_commands.describe(member='Membre cible', amount="Quantité d'XP")
 async def slash_leveldown(interaction: discord.Interaction, member: discord.Member=None, amount: int=1):
     if 'Admin' not in [r.name for r in interaction.user.roles]:
         return await interaction.response.send_message('❌ Permission refusée.', ephemeral=True)
