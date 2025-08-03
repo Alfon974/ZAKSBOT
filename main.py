@@ -186,13 +186,21 @@ async def on_voice_state_update(member, before, after):
 # autres events (join, remove) inchangés...
 
 # --- 5) Slash commands ---
-@tree.command(name="level", description="Affiche ton XP et ton niveau")
-async def slash_level(interaction: discord.Interaction):
+@tree.command(name="level", description="Affiche ton XP et ton niveau (ou celui d'un autre membre)")
+@app_commands.describe(member="Membre dont tu veux voir le niveau (optionnel)")
+async def slash_level(
+    interaction: discord.Interaction,
+    member: discord.Member = None
+):
     if interaction.channel.id != LEVEL_LOG_CHANNEL_ID:
         await interaction.response.send_message(
             f"❌ Merci d'utiliser /level dans <#{LEVEL_LOG_CHANNEL_ID}>",
             ephemeral=True
         )
+        return
+
+    # Si aucun membre n'est donné, on affiche pour l'utilisateur
+    target = member or interaction.user
         return
     xp = get_xp(interaction.user.id)
     lvl = xp_to_level(xp)
@@ -267,4 +275,5 @@ def run_bot():
 
 if __name__ == "__main__":
     run_bot()
+
 
