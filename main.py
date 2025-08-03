@@ -111,7 +111,7 @@ async def heartbeat():
     try:
         await bot.change_presence(
             status=discord.Status.online,
-            activity=discord.Game("ZAKS BOT")
+            activity=discord.Game("ZAKS BOT | !level pour stats")
         )
         print("💓 Heartbeat envoyé.")
     except Exception as e:
@@ -132,16 +132,14 @@ async def on_disconnect():
 async def on_resumed():
     print("🔄 Reconnexion Discord réussie.")
 
-# XP sur message texte
 @bot.event
 async def on_message(message):
-    if message.author.bot:
-        return
-    add_xp(message.author.id, 10)
-    await maybe_level_up(message.author)
+    # Gestion des commandes et XP texte
+    if not message.author.bot:
+        add_xp(message.author.id, 10)
+        await maybe_level_up(message.author)
     await bot.process_commands(message)
 
-# XP sur temps en vocal
 @bot.event
 async def on_voice_state_update(member, before, after):
     if before.channel is None and after.channel:
@@ -164,7 +162,7 @@ async def on_member_join(member):
         await ch.send(
             f"🎮 **Bienvenue {member.mention} sur le serveur La ZAKS !**\n\n"
             "Tu viens d’obtenir le rôle **ZAKS Rookie** 👶 — c’est le point de départ de ton aventure ici.\n\n"
-            "💬 Participe aux discussions, sois présent en vocal… plus tu es actif, plus tu progresseras !\n\n"
+            "💬 Participe aux discussions, sois présent en vocal… plus tu es actif, plus tu progresses !\n\n"
             "🔓 Avec le temps et ton implication, tu pourras évoluer vers :\n\n"
             "🥈 **ZAKS Gamers**\n🥇 **ZAKS Elite**\n\nAmuse-toi bien ! 💥"
         )
@@ -224,21 +222,20 @@ async def on_guild_role_update(b, a):
 async def on_member_update(before, after):
     ch = bot.get_channel(LOGS_CHANNEL_ID)
     if not ch: return
-    added   = set(after.roles) - set(before.roles)
+    added = set(after.roles) - set(before.roles)
     removed = set(before.roles) - set(after.roles)
     for r in added:
         await ch.send(f"✅ Rôle **{r.name}** ajouté à **{after.name}**")
     for r in removed:
         await ch.send(f"❌ Rôle **{r.name}** retiré à **{after.name}**")
 
-# --- Commande /level pour consulter XP et niveau ---
+# --- Commande !level pour consulter XP et niveau ---
 @bot.command(name="level")
 async def level_cmd(ctx, member: discord.Member = None):
     """Affiche l'XP et le niveau (1–100) d'un membre."""
     member = member or ctx.author
     xp = get_xp(member.id)
     lvl = xp_to_level(xp)
-
     embed = discord.Embed(
         title="🎚 Statut de progression",
         color=discord.Color.blurple()
@@ -267,4 +264,3 @@ if __name__ == "__main__":
         run_bot()
         print("⏳ Nouvelle tentative dans 5 secondes…")
         time.sleep(5)
-
