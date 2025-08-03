@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS users (
 ''')
 conn.commit()
 
-# Helper functions: get_xp, set_xp, add_xp, voice join...
+# --- Fonctions utilitaires ---
 def get_xp(user_id):
     cursor.execute('SELECT xp FROM users WHERE user_id = ?', (user_id,))
     row = cursor.fetchone()
@@ -51,7 +51,7 @@ def pop_voice_join(user_id):
     conn.commit()
     return t0
 
-# --- Paliers d’XP et conversion vers niveau [1-100] ---
+# --- XP / Niveau ---
 MAX_XP = 10000
 
 def xp_to_level(xp: int) -> int:
@@ -81,7 +81,7 @@ async def maybe_level_up(member: discord.Member):
         except Exception:
             pass
 
-# --- Flask pour Render ---
+# --- 1) Flask (Render keep-alive) ---
 app = Flask(__name__)
 @app.route('/')
 def home():
@@ -90,34 +90,34 @@ def run_flask():
     import logging
     log = logging.getLogger('werkzeug')
     log.setLevel(logging.ERROR)
-    app.run(host="0.0.0.0", port=8080)
+    app.run(host='0.0.0.0', port=8080)
 threading.Thread(target=run_flask).start()
 
-# --- Bot Discord & slash tree ---
-GUILD_ID = 1057336035325005875  # <- remplace par ton serveur
+# --- 2) Bot Discord & slash tree ---
+GUILD_ID = 123456789012345678  # <- remplace par ton ID serveur
 GUILD = discord.Object(id=GUILD_ID)
+
 intents = discord.Intents.all()
-bot = commands.Bot(command_prefix="!", intents=intents)
+bot = commands.Bot(command_prefix='!', intents=intents)
 tree = bot.tree
 
 WELCOME_CHANNEL_ID = 1302027297116917922
 LOGS_CHANNEL_ID = 1400141141663547462
 LEVEL_LOG_CHANNEL_ID = 1401528018345787462
 
-# --- Heartbeat ---
+# --- 3) Heartbeat + Ready ---
 @tasks.loop(minutes=5)
 async def heartbeat():
-    await bot.change_presence(status=discord.Status.online, activity=discord.Game("ZAKS BOT"))
+    await bot.change_presence(status=discord.Status.online, activity=discord.Game('ZAKS BOT'))
 
-# --- Événements ---
 @bot.event
 async def on_ready():
-    # sync slash commands to guild
     await tree.sync(guild=GUILD)
     print(f"✅ {bot.user} en ligne ! Commands synced to guild {GUILD_ID}.")
     if not heartbeat.is_running():
         heartbeat.start()
 
+# --- 4) Logs XP texte & vocal ---
 @bot.event
 async def on_message(message):
     if message.author.bot: return
@@ -126,7 +126,7 @@ async def on_message(message):
     log_ch = bot.get_channel(LOGS_CHANNEL_ID)
     if log_ch:
         xp = get_xp(message.author.id)
-        await log_ch.send(f"✉️ {message.author.mention} a gagné 10 XP. Total: {xp} XP.")
+        await log_ch.send(f"✉️ {message.author.mention} a gagné 10 XP (texte). Total: {xp} XP.")
     await bot.process_commands(message)
 
 @bot.event
@@ -136,7 +136,7 @@ async def on_voice_state_update(member, before, after):
     elif before.channel != after.channel:
         t0 = pop_voice_join(member.id)
         if t0:
-            xp_gain = (int(time.time())-t0)//60
+            xp_gain = (int(time.time()) - t0) // 60
             add_xp(member.id, xp_gain)
             await maybe_level_up(member)
             log_ch = bot.get_channel(LOGS_CHANNEL_ID)
@@ -144,64 +144,67 @@ async def on_voice_state_update(member, before, after):
                 total = get_xp(member.id)
                 await log_ch.send(f"🔊 {member.mention} a gagné {xp_gain} XP (voix). Total: {total} XP.")
 
-# --- Slash commands ---
-@tree.command(guild=GUILD, name="level", description="Affiche ton XP et ton niveau")
+# --- 5) Slash commands ---
+@tree.command(guild=GUILD, name='level', description='Affiche ton XP et ton niveau')
 async def slash_level(interaction: discord.Interaction):
     if interaction.channel.id != LEVEL_LOG_CHANNEL_ID:
         await interaction.response.send_message(f"❌ Utilise /level dans <#{LEVEL_LOG_CHANNEL_ID}>.", ephemeral=True)
         log = bot.get_channel(LOGS_CHANNEL_ID)
         if log: await log.send(f"⚠️ {interaction.user.mention} a tenté /level dans <#{interaction.channel.id}>")
         return
-    xp=get_xp(interaction.user.id); lvl=xp_to_level(xp)
-    nxt=[t for t in sorted(LEVEL_ROLES) if t>xp]
-    next_info=f"Il te manque {nxt[0]-xp} XP pour {LEVEL_ROLES[nxt[0]]}" if nxt else "Max"
-    embed=discord.Embed(title="Progression", color=0x5865F2)
-    embed.add_field(name="XP",value=str(xp),inline=True)
-    embed.add_field(name="Niveau",value=f"{lvl}/100",inline=True)
-    embed.add_field(name="Prochain",value=next_info,inline=False)
+    xp = get_xp(interaction.user.id); lvl = xp_to_level(xp)
+    next_levels = [t for t in sorted(LEVEL_ROLES) if t > xp]
+    next_info = f"Il te manque {next_levels[0]-xp} XP pour **{LEVEL_ROLES[next_levels[0]]}**." if next_levels else 'Niveau max atteint !'
+    embed = discord.Embed(title='🎚 Progression', color=discord.Color.blurple())
+    embed.set_author(name=interaction.user.display_name, icon_url=interaction.user.display_avatar.url)
+    embed.add_field(name='XP actuelle', value=str(xp), inline=True)
+    embed.add_field(name='Niveau', value=f"{lvl} / 100", inline=True)
+    embed.add_field(name='Prochain palier', value=next_info, inline=False)
+    embed.set_footer(text=f"{min(xp, MAX_XP)}/{MAX_XP} XP")
     await interaction.response.send_message(embed=embed)
-    log=bot.get_channel(LOGS_CHANNEL_ID)
+    log = bot.get_channel(LOGS_CHANNEL_ID)
     if log: await log.send(f"🔍 {interaction.user.mention} a utilisé /level dans <#{interaction.channel.id}>")
 
-@tree.command(guild=GUILD, name="levelup", description="Ajoute de l'XP à un membre")
-@app_commands.describe(member="Membre cible", amount="XP à ajouter")
-async def slash_levelup(interaction: discord.Interaction, member: discord.Member=None, amount:int=1):
-    if "Admin" not in [r.name for r in interaction.user.roles]:
-        return await interaction.response.send_message("❌ Permission refusée.", ephemeral=True)
+@tree.command(guild=GUILD, name='levelup', description="Ajoute de l'XP à un membre")
+@app_commands.describe(member='Membre cible', amount='Quantité d'XP')
+async def slash_levelup(interaction: discord.Interaction, member: discord.Member=None, amount: int=1):
+    if 'Admin' not in [r.name for r in interaction.user.roles]:
+        return await interaction.response.send_message('❌ Permission refusée.', ephemeral=True)
     await interaction.response.defer(ephemeral=True)
-    member=member or interaction.user
-    add_xp(member.id,amount); await maybe_level_up(member)
-    new_xp=get_xp(member.id)
-    log=bot.get_channel(LOGS_CHANNEL_ID)
-    if log: await log.send(f"✅ {interaction.user.mention} a utilisé /levelup sur {member.mention} (+{amount}) dans <#{interaction.channel.id}>")
-    await interaction.followup.send(f"✅ {amount} XP ajouté. Total: {new_xp}", ephemeral=True)
+    target = member or interaction.user
+    add_xp(target.id, amount)
+    await maybe_level_up(target)
+    new_xp = get_xp(target.id)
+    log = bot.get_channel(LOGS_CHANNEL_ID)
+    if log: await log.send(f"✅ {interaction.user.mention} a utilisé /levelup sur {target.mention} (+{amount}) dans <#{interaction.channel.id}>")
+    await interaction.followup.send(f"✅ {amount} XP ajouté à {target.mention}. Total: {new_xp} XP.", ephemeral=True)
 
-@tree.command(guild=GUILD, name="leveldown", description="Retire de l'XP à un membre")
-@app_commands.describe(member="Membre cible", amount="XP à retirer")
-async def slash_leveldown(interaction: discord.Interaction, member: discord.Member=None, amount:int=1):
-    if "Admin" not in [r.name for r in interaction.user.roles]:
-        return await interaction.response.send_message("❌ Permission refusée.", ephemeral=True)
+@tree.command(guild=GUILD, name='leveldown', description="Retire de l'XP à un membre")
+@app_commands.describe(member='Membre cible', amount='Quantité d'XP')
+async def slash_leveldown(interaction: discord.Interaction, member: discord.Member=None, amount: int=1):
+    if 'Admin' not in [r.name for r in interaction.user.roles]:
+        return await interaction.response.send_message('❌ Permission refusée.', ephemeral=True)
     await interaction.response.defer(ephemeral=True)
-    member=member or interaction.user
-    cur=get_xp(member.id); sub=min(amount,cur)
-    set_xp(member.id,cur-sub); await maybe_level_up(member)
-    log=bot.get_channel(LOGS_CHANNEL_ID)
-    if log: await log.send(f"❌ {interaction.user.mention} a utilisé /leveldown sur {member.mention} (-{sub}) dans <#{interaction.channel.id}>")
-    await interaction.followup.send(f"❌ {sub} XP retiré. Total: {get_xp(member.id)}", ephemeral=True)
+    target = member or interaction.user
+    cur = get_xp(target.id); sub = min(amount, cur)
+    set_xp(target.id, cur - sub); await maybe_level_up(target)
+    log = bot.get_channel(LOGS_CHANNEL_ID)
+    if log: await log.send(f"❌ {interaction.user.mention} a utilisé /leveldown sur {target.mention} (-{sub}) dans <#{interaction.channel.id}>")
+    await interaction.followup.send(f"❌ {sub} XP retiré à {target.mention}. Total: {get_xp(target.id)} XP.", ephemeral=True)
 
-@tree.command(guild=GUILD, name="clearall", description="Supprime tous les messages du salon")
+@tree.command(guild=GUILD, name='clearall', description='Supprime tous les messages du salon')
 async def slash_clearall(interaction: discord.Interaction):
-    if "Admin" not in [r.name for r in interaction.user.roles]:
-        return await interaction.response.send_message("❌ Permission refusée.", ephemeral=True)
+    if 'Admin' not in [r.name for r in interaction.user.roles]:
+        return await interaction.response.send_message('❌ Permission refusée.', ephemeral=True)
     await interaction.response.defer(ephemeral=True)
     deleted = await interaction.channel.purge()
-    log=bot.get_channel(LOGS_CHANNEL_ID)
-    if log: await log.send(f"🧹 {interaction.user.mention} a utilisé /clearall dans <#{interaction.channel.id}> — {len(deleted)} messages.")
+    log = bot.get_channel(LOGS_CHANNEL_ID)
+    if log: await log.send(f"🧹 {interaction.user.mention} a utilisé /clearall dans <#{interaction.channel.id}> — {len(deleted)} messages supprimés.")
     await interaction.followup.send(f"🧹 {len(deleted)} messages supprimés.", ephemeral=True)
 
-# --- Run ---
+# --- 6) Lancement ---
 def run_bot():
     bot.run(os.environ['TOKEN_BOT_DISCORD'], reconnect=True)
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     run_bot()
