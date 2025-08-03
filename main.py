@@ -78,8 +78,8 @@ async def maybe_level_up(member):
                 if r and r in member.roles:
                     await member.remove_roles(r)
             await member.add_roles(role)
-            # log palier atteint
-            log_ch = bot.get_channel(LEVEL_LOG_CHANNEL_ID)
+            # log palier atteint dans salon général
+            log_ch = bot.get_channel(LOGS_CHANNEL_ID)
             if log_ch:
                 await log_ch.send(f"🏅 {member.mention} est maintenant **{role_name}** ({xp} XP) !")
         except discord.Forbidden:
@@ -190,8 +190,8 @@ async def on_member_remove(member):
 # --- Commande !level (salon dédié) ---
 @bot.command(name="level")
 async def level_cmd(ctx, member: discord.Member=None):
-    # accessible uniquement dans salon LEVEL_LOG_CHANNEL_ID
     if ctx.channel.id != LEVEL_LOG_CHANNEL_ID:
+        await ctx.send(f"❌ Merci d'utiliser !level dans <#{LEVEL_LOG_CHANNEL_ID}>.")
         return
     member = member or ctx.author
     xp = get_xp(member.id)
