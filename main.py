@@ -1,3 +1,4 @@
+print(">>> DEBUT DU SCRIPT main.py !")
 import os
 import time
 import threading
@@ -302,3 +303,4 @@ if __name__ == "__main__":
         run_bot()
         print("⏳ Nouvelle tentative dans 5 secondes…")
         time.sleep(5)
+
