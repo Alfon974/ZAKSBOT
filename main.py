@@ -215,17 +215,22 @@ async def slash_levelup(interaction: discord.Interaction, member: discord.Member
         await interaction.response.send_message("❌ Permission refusée.", ephemeral=True)
         return
     member = member or interaction.user
+    # Acknowledge interaction to avoid timeout
+    await interaction.response.defer(ephemeral=True)
     add_xp(member.id, amount)
     await maybe_level_up(member)
     new_xp = get_xp(member.id)
-    await interaction.response.send_message(
-        f"✅ {amount} XP ajouté à {member.mention}. Total: {new_xp} XP.", ephemeral=True
-    )
+    # Log usage
     log_ch = bot.get_channel(LOGS_CHANNEL_ID)
     if log_ch:
         await log_ch.send(f"✅ {interaction.user.mention} a utilisé `/levelup` sur {member.mention} (+{amount} XP) dans <#{interaction.channel.id}>.")
+    # Send followup
+    await interaction.followup.send(
+        f"✅ {amount} XP ajouté à {member.mention}. Total: {new_xp} XP.",
+        ephemeral=True
+    )
 
-@tree.command(name="leveldown", description="Retire de l'XP à un membre")
+# Next slash commands continues(name="leveldown", description="Retire de l'XP à un membre")
 @app_commands.describe(member="Membre cible", amount="Quantité d'XP")
 async def slash_leveldown(interaction: discord.Interaction, member: discord.Member | None = None, amount: int = 1):
     if "Admin" not in [r.name for r in interaction.user.roles]:
