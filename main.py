@@ -94,7 +94,7 @@ def run_flask():
 threading.Thread(target=run_flask).start()
 
 # --- 2) Bot Discord & slash tree ---
-GUILD_ID = 123456789012345678  # <- remplace par ton ID serveur
+GUILD_ID = 1057336035325005875  # <- remplace par ton ID serveur
 GUILD = discord.Object(id=GUILD_ID)
 
 intents = discord.Intents.all()
@@ -210,3 +210,4 @@ def run_bot():
 
 if __name__ == '__main__':
     run_bot()
+
