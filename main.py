@@ -219,7 +219,7 @@ async def slash_level(
     embed.add_field(name="Niveau", value=f"{lvl} / 100", inline=True)
     embed.add_field(name="Prochain palier", value=next_info, inline=False)
     embed.set_footer(text=f"{min(xp, MAX_XP)}/{MAX_XP} XP")
-    await interaction.response.send_message(embed=embed, ephemeral=True)
+    await interaction.response.send_message(embed=embed)
 
 @tree.command(name="levelup", description="Ajoute de l'XP à un membre")
 @app_commands.describe(member="Membre cible", amount="Quantité d'XP")
@@ -276,6 +276,7 @@ def run_bot():
 
 if __name__ == "__main__":
     run_bot()
+
 
 
 
