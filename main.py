@@ -20,16 +20,19 @@ CREATE TABLE IF NOT EXISTS users (
 ''')
 conn.commit()
 
+
 def get_xp(user_id):
     cursor.execute('SELECT xp FROM users WHERE user_id = ?', (user_id,))
     row = cursor.fetchone()
     return row[0] if row else 0
+
 
 def set_xp(user_id, xp_value):
     new_xp = max(xp_value, 0)
     cursor.execute('INSERT OR IGNORE INTO users(user_id) VALUES(?)', (user_id,))
     cursor.execute('UPDATE users SET xp = ? WHERE user_id = ?', (new_xp, user_id))
     conn.commit()
+
 
 def add_xp(user_id, amount):
     current = get_xp(user_id)
@@ -40,6 +43,7 @@ def set_voice_join(user_id, timestamp):
     cursor.execute('INSERT OR IGNORE INTO users(user_id) VALUES(?)', (user_id,))
     cursor.execute('UPDATE users SET last_voice_join = ? WHERE user_id = ?', (timestamp, user_id))
     conn.commit()
+
 
 def pop_voice_join(user_id):
     cursor.execute('SELECT last_voice_join FROM users WHERE user_id = ?', (user_id,))
@@ -52,7 +56,8 @@ def pop_voice_join(user_id):
     return t0
 
 # --- Paliers d’XP et conversion vers niveau [1-100] ---
-MAX_XP = 10000  # XP pour niveau 100
+MAX_XP = 10000  # XP nécessaire pour atteindre le niveau 100
+
 
 def xp_to_level(xp: int) -> int:
     lvl = int(xp * 99 / MAX_XP) + 1
@@ -63,6 +68,7 @@ LEVEL_ROLES = {
     1000: "ZAKS Gamers",
     5000: "ZAKS Elite"
 }
+
 
 async def maybe_level_up(member: discord.Member):
     xp = get_xp(member.id)
@@ -94,6 +100,7 @@ app = Flask(__name__)
 def home():
     return "ZAKS BOT est en ligne !"
 
+
 def run_flask():
     import logging
     log = logging.getLogger('werkzeug')
@@ -102,7 +109,7 @@ def run_flask():
 
 threading.Thread(target=run_flask).start()
 
-# --- 2) Bot Discord et tree ---
+# --- 2) Bot Discord et application commands tree ---
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
 tree = bot.tree
@@ -162,7 +169,7 @@ async def on_voice_state_update(member, before, after):
                 total = get_xp(member.id)
                 await log_ch.send(f"🔊 {member.mention} a gagné {xp_gain} XP (voix). Total: {total} XP.")
 
-# autres events (join, remove)...
+# autres events (join, remove) inchangés...
 
 # --- 5) Slash commands ---
 @tree.command(name="level", description="Affiche ton XP et ton niveau")
@@ -180,8 +187,7 @@ async def slash_level(interaction: discord.Interaction):
 
     xp = get_xp(interaction.user.id)
     lvl = xp_to_level(xp)
-    levels = sorted(LEVEL_ROLES.keys())
-    next_levels = [t for t in levels if t > xp]
+    next_levels = [t for t in sorted(LEVEL_ROLES.keys()) if t > xp]
     if next_levels:
         nt = next_levels[0]
         next_info = f"Il te manque {nt - xp} XP pour devenir **{LEVEL_ROLES[nt]}**."
@@ -189,21 +195,20 @@ async def slash_level(interaction: discord.Interaction):
         next_info = "Niveau max atteint !"
 
     embed = discord.Embed(title="🎚 Progression", color=discord.Color.blurple())
-    embed.set_author(name=interaction.user.display_name, icon_url=interaction.user.display_avatar.url)
+    embed.set_author(name=interaction.user.display_name,
+                     icon_url=interaction.user.display_avatar.url)
     embed.add_field(name="XP actuelle", value=str(xp), inline=True)
     embed.add_field(name="Niveau", value=f"{lvl} / 100", inline=True)
     embed.add_field(name="Prochain palier", value=next_info, inline=False)
     embed.set_footer(text=f"{min(xp, MAX_XP)}/{MAX_XP} XP")
 
-    # Envoi public (non éphémère) dans le salon dédié
     await interaction.response.send_message(embed=embed)
-
-    # Log de l'utilisation
+    # Log utilisation
     log_ch = bot.get_channel(LOGS_CHANNEL_ID)
     if log_ch:
         await log_ch.send(f"🔍 {interaction.user.mention} a utilisé `/level` dans <#{interaction.channel.id}>.")
 
-# next slash commands follows(name="levelup", description="Ajoute de l'XP à un membre")
+@tree.command(name="levelup", description="Ajoute de l'XP à un membre")
 @app_commands.describe(member="Membre cible", amount="Quantité d'XP")
 async def slash_levelup(interaction: discord.Interaction, member: discord.Member | None = None, amount: int = 1):
     if "Admin" not in [r.name for r in interaction.user.roles]:
@@ -244,24 +249,13 @@ async def slash_clearall(interaction: discord.Interaction):
     if "Admin" not in [r.name for r in interaction.user.roles]:
         await interaction.response.send_message("❌ Permission refusée.", ephemeral=True)
         return
-    # Acknowledge interaction to avoid timeouts
+    # Acknowledge to avoid unknown interaction
     await interaction.response.defer(ephemeral=True)
-    # Purge messages
     deleted = await interaction.channel.purge()
-    # Log in global logs channel
     log_ch = bot.get_channel(LOGS_CHANNEL_ID)
     if log_ch:
         await log_ch.send(f"🧹 {interaction.user.mention} a utilisé `/clearall` dans <#{interaction.channel.id}> — {len(deleted)} messages supprimés.")
-    # Follow-up response
     await interaction.followup.send(
-        f"🧹 {len(deleted)} messages supprimés.", ephemeral=True
-    )
-        return
-    deleted = await interaction.channel.purge()
-    log_ch = bot.get_channel(LOGS_CHANNEL_ID)
-    if log_ch:
-        await log_ch.send(f"🧹 {interaction.user.mention} a utilisé `/clearall` dans <#{interaction.channel.id}> — {len(deleted)} messages supprimés.")
-    await interaction.response.send_message(
         f"🧹 {len(deleted)} messages supprimés.", ephemeral=True
     )
 
