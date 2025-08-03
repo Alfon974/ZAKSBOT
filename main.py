@@ -298,9 +298,7 @@ def run_bot():
     except Exception as e:
         print(f"❌ ERREUR INATTENDUE : {e}")
 
-if __name__ == "__main__":
-    while True:
-        run_bot()
-        print("⏳ Nouvelle tentative dans 5 secondes…")
-        time.sleep(5)
-
+while True:
+    run_bot()
+    print("⏳ Nouvelle tentative dans 5 secondes…")
+    time.sleep(5)
