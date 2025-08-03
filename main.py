@@ -127,8 +127,10 @@ async def heartbeat():
 # --- 4) Événements standard ---
 @bot.event
 async def on_ready():
-    await tree.sync()
-    print(f"✅ {bot.user} est en ligne et slash-commands synchronisées !")
+    # Sync commands per guild for immediate availability
+    for guild in bot.guilds:
+        await tree.sync(guild=guild)
+    print(f"✅ {bot.user} est en ligne et slash-commands synchronisées dans chaque serveur !")
     if not heartbeat.is_running():
         heartbeat.start()
 
@@ -241,6 +243,19 @@ async def slash_leveldown(interaction: discord.Interaction, member: discord.Memb
 async def slash_clearall(interaction: discord.Interaction):
     if "Admin" not in [r.name for r in interaction.user.roles]:
         await interaction.response.send_message("❌ Permission refusée.", ephemeral=True)
+        return
+    # Acknowledge interaction to avoid timeouts
+    await interaction.response.defer(ephemeral=True)
+    # Purge messages
+    deleted = await interaction.channel.purge()
+    # Log in global logs channel
+    log_ch = bot.get_channel(LOGS_CHANNEL_ID)
+    if log_ch:
+        await log_ch.send(f"🧹 {interaction.user.mention} a utilisé `/clearall` dans <#{interaction.channel.id}> — {len(deleted)} messages supprimés.")
+    # Follow-up response
+    await interaction.followup.send(
+        f"🧹 {len(deleted)} messages supprimés.", ephemeral=True
+    )
         return
     deleted = await interaction.channel.purge()
     log_ch = bot.get_channel(LOGS_CHANNEL_ID)
