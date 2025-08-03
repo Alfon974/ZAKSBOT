@@ -78,15 +78,16 @@ async def maybe_level_up(member):
                 if r and r in member.roles:
                     await member.remove_roles(r)
             await member.add_roles(role)
-            logs = bot.get_channel(LEVEL_LOG_CHANNEL_ID)
-            if logs:
-                await logs.send(f"🏅 {member.mention} est maintenant **{role_name}** ({xp} XP) !")
+            # log palier atteint
+            log_ch = bot.get_channel(LEVEL_LOG_CHANNEL_ID)
+            if log_ch:
+                await log_ch.send(f"🏅 {member.mention} est maintenant **{role_name}** ({xp} XP) !")
         except discord.Forbidden:
             print(f"⚠️ Pas la permission pour gérer {role_name} pour {member}.")
         except Exception as e:
             print(f"❌ Erreur maybe_level_up pour {member}: {e}")
 
-# --- 1) Flask pour Render (Web Service gratuit) ---
+# --- 1) Flask pour Render ---
 app = Flask(__name__)
 
 @app.route('/')
@@ -101,16 +102,16 @@ def run_flask():
 
 threading.Thread(target=run_flask).start()
 
-# --- 2) Configuration du bot Discord ---
+# --- 2) Bot Discord ---
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# IDs de salons
+# IDs salons
 WELCOME_CHANNEL_ID = 1302027297116917922
-LOGS_CHANNEL_ID    = 1400141141663547462  # général logs
-LEVEL_LOG_CHANNEL_ID = 1401528018345787462  # logs niveaux/XP
+LOGS_CHANNEL_ID    = 1400141141663547462  # salon logs général
+LEVEL_LOG_CHANNEL_ID = 1401528018345787462  # salon XP/niveaux
 
-# --- 3) Heartbeat toutes les 5 min ---
+# --- 3) Heartbeat ---
 @tasks.loop(minutes=5)
 async def heartbeat():
     try:
@@ -122,7 +123,7 @@ async def heartbeat():
     except Exception as e:
         print(f"❌ Erreur Heartbeat : {e}")
 
-# --- 4) Événements du bot ---
+# --- 4) Événements ---
 @bot.event
 async def on_ready():
     print(f"✅ {bot.user} est en ligne !")
@@ -138,20 +139,20 @@ async def on_disconnect():
 async def on_resumed():
     print("🔄 Reconnecté à Discord.")
 
-# XP texte + log niveau
+# XP texte + log général
 @bot.event
 async def on_message(message):
     if message.author.bot:
         return
     add_xp(message.author.id, 10)
     await maybe_level_up(message.author)
-    level_log = bot.get_channel(LEVEL_LOG_CHANNEL_ID)
-    if level_log:
+    log_ch = bot.get_channel(LOGS_CHANNEL_ID)
+    if log_ch:
         xp = get_xp(message.author.id)
-        level_log.send(f"✉️ {message.author.mention} a gagné 10 XP (texte). Total: {xp} XP.")
+        await log_ch.send(f"✉️ {message.author.mention} a gagné 10 XP (texte). Total: {xp} XP.")
     await bot.process_commands(message)
 
-# XP vocal + log niveau
+# XP vocal + log général
 @bot.event
 async def on_voice_state_update(member, before, after):
     if before.channel is None and after.channel:
@@ -163,45 +164,46 @@ async def on_voice_state_update(member, before, after):
             xp_gain = duration // 60
             add_xp(member.id, xp_gain)
             await maybe_level_up(member)
-            level_log = bot.get_channel(LEVEL_LOG_CHANNEL_ID)
-            if level_log:
+            log_ch = bot.get_channel(LOGS_CHANNEL_ID)
+            if log_ch:
                 total = get_xp(member.id)
-                await level_log.send(f"🔊 {member.mention} a gagné {xp_gain} XP (voix). Total: {total} XP.")
+                await log_ch.send(f"🔊 {member.mention} a gagné {xp_gain} XP (voix). Total: {total} XP.")
 
-# autres événements de logs généraux...
 @bot.event
 async def on_member_join(member):
     ch = bot.get_channel(WELCOME_CHANNEL_ID)
     if ch:
-        ch.send(f"🎮 Bienvenue {member.mention} ! Tu as reçu **ZAKS Rookie** 👶")
+        await ch.send(f"🎮 Bienvenue {member.mention} ! Tu as reçu **ZAKS Rookie** 👶")
     role = discord.utils.get(member.guild.roles, name="ZAKS Rookie")
     if role:
-        try: member.add_roles(role)
-        except: pass
+        try:
+            await member.add_roles(role)
+        except:
+            pass
 
 @bot.event
 async def on_member_remove(member):
     ch = bot.get_channel(LOGS_CHANNEL_ID)
     if ch:
-        ch.send(f"🚪 {member} a quitté.")
+        await ch.send(f"🚪 {member} a quitté.")
 
-# --- Commande !level pour consulter XP et niveau + log usage ---
+# --- Commande !level (salon dédié) ---
 @bot.command(name="level")
 async def level_cmd(ctx, member: discord.Member=None):
+    # accessible uniquement dans salon LEVEL_LOG_CHANNEL_ID
+    if ctx.channel.id != LEVEL_LOG_CHANNEL_ID:
+        return
     member = member or ctx.author
     xp = get_xp(member.id)
     lvl = xp_to_level(xp)
-    # calcul paliers
     current_threshold = max([t for t in LEVEL_ROLES if t <= xp])
     next_thresholds = [t for t in LEVEL_ROLES if t > xp]
-    next_info = ""
     if next_thresholds:
         next_t = min(next_thresholds)
         next_role = LEVEL_ROLES[next_t]
         next_info = f"Il te manque {next_t - xp} XP pour devenir **{next_role}**."
     else:
         next_info = "Tu as atteint le niveau max !"
-
     embed = discord.Embed(title="🎚 Progression", color=discord.Color.blurple())
     embed.set_author(name=member.display_name, icon_url=member.avatar.url if member.avatar else None)
     embed.add_field(name="XP actuelle", value=f"{xp}", inline=True)
@@ -209,11 +211,8 @@ async def level_cmd(ctx, member: discord.Member=None):
     embed.add_field(name="Prochain palier", value=next_info, inline=False)
     embed.set_footer(text=f"{min(xp, MAX_XP)}/{MAX_XP} XP")
     await ctx.send(embed=embed)
-    log = bot.get_channel(LEVEL_LOG_CHANNEL_ID)
-    if log:
-        log.send(f"🔍 {ctx.author.mention} a consulté le niveau de {member.mention}: {xp} XP, {lvl}/100.")
 
-# --- Commandes Admin: !levelup and !leveldown ---
+# --- Commandes Admin: levelup & leveldown ---
 @commands.has_role('Admin')
 @bot.command(name="levelup")
 async def levelup_cmd(ctx, member: discord.Member=None, amount: int=1):
@@ -222,9 +221,6 @@ async def levelup_cmd(ctx, member: discord.Member=None, amount: int=1):
     await maybe_level_up(member)
     new_xp = get_xp(member.id)
     await ctx.send(f"✅ {amount} XP ajouté à {member.mention}. XP actuel: {new_xp}")
-    log = bot.get_channel(LEVEL_LOG_CHANNEL_ID)
-    if log:
-        log.send(f"✅ {ctx.author.mention} a ajouté {amount} XP à {member.mention}. Total: {new_xp} XP.")
 
 @commands.has_role('Admin')
 @bot.command(name="leveldown")
@@ -232,24 +228,21 @@ async def leveldown_cmd(ctx, member: discord.Member=None, amount: int=1):
     member = member or ctx.author
     current = get_xp(member.id)
     sub = min(amount, current)
-    add_xp(member.id, -sub)
+    set_xp(member.id, current - sub)
     await maybe_level_up(member)
     new_xp = get_xp(member.id)
     await ctx.send(f"❌ {sub} XP retiré à {member.mention}. XP actuel: {new_xp}")
-    log = bot.get_channel(LEVEL_LOG_CHANNEL_ID)
-    if log:
-        log.send(f"❌ {ctx.author.mention} a retiré {sub} XP à {member.mention}. Total: {new_xp} XP.")
 
-# --- Commande Admin: !clearall ---
+# --- Commande Admin: clearall ---
 @commands.has_role('Admin')
 @bot.command(name="clearall")
 async def clearall_cmd(ctx):
     deleted = await ctx.channel.purge()
-    msg = await ctx.send(f"🧹 {len(deleted)} messages supprimés.")
-    await time.sleep(5)
-    await msg.delete()
+    log_ch = bot.get_channel(LOGS_CHANNEL_ID)
+    if log_ch:
+        await log_ch.send(f"🧹 {len(deleted)} messages supprimés dans {ctx.channel.mention}.")
 
-# --- 5) Lancement auto-reco & diag ---
+# --- 5) Lancement ---
 def run_bot():
     print("🚀 Tentative connexion…")
     try:
