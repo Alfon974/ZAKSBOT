@@ -112,8 +112,9 @@ async def heartbeat():
 
 @bot.event
 async def on_ready():
-    await tree.sync(guild=GUILD)
-    print(f"✅ {bot.user} en ligne ! Commands synced to guild {GUILD_ID}.")
+    # Sync slash commands to the guild for immediate availability
+    synced = await tree.sync(guild=GUILD)
+    print(f"✅ {bot.user} en ligne ! Commands synced to guild {GUILD_ID}: {[c.name for c in synced]}")
     if not heartbeat.is_running():
         heartbeat.start()
 
@@ -188,9 +189,10 @@ async def slash_leveldown(interaction: discord.Interaction, member: discord.Memb
     target = member or interaction.user
     cur = get_xp(target.id); sub = min(amount, cur)
     set_xp(target.id, cur - sub); await maybe_level_up(target)
+    new_xp = get_xp(target.id)
     log = bot.get_channel(LOGS_CHANNEL_ID)
     if log: await log.send(f"❌ {interaction.user.mention} a utilisé /leveldown sur {target.mention} (-{sub}) dans <#{interaction.channel.id}>")
-    await interaction.followup.send(f"❌ {sub} XP retiré à {target.mention}. Total: {get_xp(target.id)} XP.", ephemeral=True)
+    await interaction.followup.send(f"❌ {sub} XP retiré à {target.mention}. Total: {new_xp} XP.", ephemeral=True)
 
 @tree.command(guild=GUILD, name='clearall', description='Supprime tous les messages du salon')
 async def slash_clearall(interaction: discord.Interaction):
