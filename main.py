@@ -170,13 +170,17 @@ async def slash_level(interaction: discord.Interaction):
             f"❌ Merci d'utiliser /level dans <#{LEVEL_LOG_CHANNEL_ID}>",
             ephemeral=True
         )
+        # log tentative d'utilisation incorrecte
+        log_ch = bot.get_channel(LOGS_CHANNEL_ID)
+        if log_ch:
+            await log_ch.send(f"⚠️ {interaction.user.mention} a tenté `/level` dans <#{interaction.channel.id}>.")
         return
     xp = get_xp(interaction.user.id)
     lvl = xp_to_level(xp)
     current_thr = max([t for t in LEVEL_ROLES if t <= xp])
     next_thrs = [t for t in LEVEL_ROLES if t > xp]
     if next_thrs:
-        nt = min(next_thrs);
+        nt = min(next_thrs)
         next_info = f"Il te manque {nt - xp} XP pour **{LEVEL_ROLES[nt]}**."
     else:
         next_info = "Niveau max atteint !"
@@ -187,13 +191,32 @@ async def slash_level(interaction: discord.Interaction):
     embed.add_field(name="Niveau", value=f"{lvl} / 100", inline=True)
     embed.add_field(name="Prochain palier", value=next_info, inline=False)
     embed.set_footer(text=f"{min(xp, MAX_XP)}/{MAX_XP} XP")
-    await interaction.response.send_message(embed=embed, ephemeral=True)
+    # envoi public dans salon dédié
+    await interaction.response.send_message(embed=embed)
+    # log utilisation
+    log_ch = bot.get_channel(LOGS_CHANNEL_ID)
+    if log_ch:
+        await log_ch.send(f"🔍 {interaction.user.mention} a utilisé `/level` dans <#{interaction.channel.id}>.")
 
 @tree.command(name="levelup", description="Ajoute de l'XP à un membre")
 @app_commands.describe(member="Membre cible", amount="Quantité d'XP")
 async def slash_levelup(interaction: discord.Interaction, member: discord.Member | None = None, amount: int = 1):
     if "Admin" not in [r.name for r in interaction.user.roles]:
         await interaction.response.send_message("❌ Permission refusée.", ephemeral=True)
+        return
+    member = member or interaction.user
+    add_xp(member.id, amount)
+    await maybe_level_up(member)
+    new_xp = get_xp(member.id)
+    # réponse éphémère
+    await interaction.response.send_message(
+        f"✅ {amount} XP ajouté à {member.mention}. Total: {new_xp} XP.",
+        ephemeral=True
+    )
+    # log slash usage
+    log_ch = bot.get_channel(LOGS_CHANNEL_ID)
+    if log_ch:
+        await log_ch.send(f"✅ {interaction.user.mention} a utilisé `/levelup` sur {member.mention} (+{amount} XP) dans <#{interaction.channel.id}>.")
         return
     member = member or interaction.user
     add_xp(member.id, amount)
@@ -220,11 +243,34 @@ async def slash_leveldown(interaction: discord.Interaction, member: discord.Memb
         f"❌ {sub} XP retiré à {member.mention}. Total: {new_xp} XP.",
         ephemeral=True
     )
+    log_ch = bot.get_channel(LOGS_CHANNEL_ID)
+    if log_ch:
+        await log_ch.send(f"❌ {interaction.user.mention} a utilisé `/leveldown` sur {member.mention} (-{sub} XP) dans <#{interaction.channel.id}>.")
+        return
+    member = member or interaction.user
+    current = get_xp(member.id)
+    sub = min(amount, current)
+    set_xp(member.id, current - sub)
+    await maybe_level_up(member)
+    new_xp = get_xp(member.id)
+    await interaction.response.send_message(
+        f"❌ {sub} XP retiré à {member.mention}. Total: {new_xp} XP.",
+        ephemeral=True
+    )
 
 @tree.command(name="clearall", description="Supprime tous les messages du salon")
 async def slash_clearall(interaction: discord.Interaction):
     if "Admin" not in [r.name for r in interaction.user.roles]:
         await interaction.response.send_message("❌ Permission refusée.", ephemeral=True)
+        return
+    deleted = await interaction.channel.purge()
+    log_ch = bot.get_channel(LOGS_CHANNEL_ID)
+    if log_ch:
+        await log_ch.send(f"🧹 {interaction.user.mention} a utilisé `/clearall` dans <#{interaction.channel.id}> — {len(deleted)} messages supprimés.")
+    await interaction.response.send_message(
+        f"🧹 {len(deleted)} messages supprimés.",
+        ephemeral=True
+    )
         return
     # purge
     deleted = await interaction.channel.purge()
