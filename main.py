@@ -1,4 +1,3 @@
-```python
 import os
 import time
 import threading
@@ -117,7 +116,7 @@ async def heartbeat():
     try:
         await bot.change_presence(
             status=discord.Status.online,
-            activity=discord.Game("ZAKS BOT | !level pour stats")
+            activity=discord.Game("ZAKS BOT")
         )
         print("💓 Heartbeat envoyé.")
     except Exception as e:
@@ -251,4 +250,3 @@ if __name__ == "__main__":
         run_bot()
         print("⏳ Reconnexion dans 5s…")
         time.sleep(5)
-```
