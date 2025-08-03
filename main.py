@@ -201,24 +201,25 @@ async def slash_level(
 
     # Si aucun membre n'est donné, on affiche pour l'utilisateur
     target = member or interaction.user
-        return
-    xp = get_xp(interaction.user.id)
+
+    xp = get_xp(target.id)
     lvl = xp_to_level(xp)
     current_thr = max([t for t in LEVEL_ROLES if t <= xp])
     next_thrs = [t for t in LEVEL_ROLES if t > xp]
     if next_thrs:
-        nt = min(next_thrs);
-        next_info = f"Il te manque {nt - xp} XP pour **{LEVEL_ROLES[nt]}**."
+        nt = min(next_thrs)
+        next_info = f"Il manque {nt - xp} XP à {target.mention} pour **{LEVEL_ROLES[nt]}**."
     else:
         next_info = "Niveau max atteint !"
+
     embed = discord.Embed(title="🎚 Progression", color=discord.Color.blurple())
-    embed.set_author(name=interaction.user.display_name,
-                     icon_url=interaction.user.display_avatar.url)
+    embed.set_author(name=target.display_name,
+                     icon_url=target.display_avatar.url)
     embed.add_field(name="XP actuelle", value=str(xp), inline=True)
     embed.add_field(name="Niveau", value=f"{lvl} / 100", inline=True)
     embed.add_field(name="Prochain palier", value=next_info, inline=False)
     embed.set_footer(text=f"{min(xp, MAX_XP)}/{MAX_XP} XP")
-    await interaction.response.send_message(embed=embed)
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 @tree.command(name="levelup", description="Ajoute de l'XP à un membre")
 @app_commands.describe(member="Membre cible", amount="Quantité d'XP")
@@ -275,5 +276,6 @@ def run_bot():
 
 if __name__ == "__main__":
     run_bot()
+
 
 
