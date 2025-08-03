@@ -106,11 +106,20 @@ threading.Thread(target=run_flask).start()
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
 tree = bot.tree
+@bot.event
+async def on_app_command_completion(interaction: discord.Interaction, command: app_commands.Command):
+    log_ch = bot.get_channel(LOGS_CHANNEL_ID)
+    if log_ch:
+        user = interaction.user
+        await log_ch.send(
+            f"📩 Slash utilisé : `/{command.name}` par {user.mention} dans <#{interaction.channel.id}>"
+        )
 
 # IDs salons
 WELCOME_CHANNEL_ID = 1302027297116917922
 LOGS_CHANNEL_ID    = 1400141141663547462
 LEVEL_LOG_CHANNEL_ID = 1401528018345787462
+ADMIN_ROLE_ID      = 1302034266699599914
 
 # --- 3) Heartbeat ---
 @tasks.loop(minutes=5)
@@ -187,12 +196,12 @@ async def slash_level(interaction: discord.Interaction):
     embed.add_field(name="Niveau", value=f"{lvl} / 100", inline=True)
     embed.add_field(name="Prochain palier", value=next_info, inline=False)
     embed.set_footer(text=f"{min(xp, MAX_XP)}/{MAX_XP} XP")
-    await interaction.response.send_message(embed=embed, ephemeral=True)
+    await interaction.response.send_message(embed=embed)
 
 @tree.command(name="levelup", description="Ajoute de l'XP à un membre")
 @app_commands.describe(member="Membre cible", amount="Quantité d'XP")
 async def slash_levelup(interaction: discord.Interaction, member: discord.Member | None = None, amount: int = 1):
-    if "Admin" not in [r.name for r in interaction.user.roles]:
+    if ADMIN_ROLE_ID not in [r.id for r in interaction.user.roles]:
         await interaction.response.send_message("❌ Permission refusée.", ephemeral=True)
         return
     member = member or interaction.user
@@ -207,7 +216,7 @@ async def slash_levelup(interaction: discord.Interaction, member: discord.Member
 @tree.command(name="leveldown", description="Retire de l'XP à un membre")
 @app_commands.describe(member="Membre cible", amount="Quantité d'XP")
 async def slash_leveldown(interaction: discord.Interaction, member: discord.Member | None = None, amount: int = 1):
-    if "Admin" not in [r.name for r in interaction.user.roles]:
+    if ADMIN_ROLE_ID not in [r.id for r in interaction.user.roles]:
         await interaction.response.send_message("❌ Permission refusée.", ephemeral=True)
         return
     member = member or interaction.user
@@ -223,7 +232,7 @@ async def slash_leveldown(interaction: discord.Interaction, member: discord.Memb
 
 @tree.command(name="clearall", description="Supprime tous les messages du salon")
 async def slash_clearall(interaction: discord.Interaction):
-    if "Admin" not in [r.name for r in interaction.user.roles]:
+    if ADMIN_ROLE_ID not in [r.id for r in interaction.user.roles]:
         await interaction.response.send_message("❌ Permission refusée.", ephemeral=True)
         return
     # purge
